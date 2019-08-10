@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Memory</title>
+    <!-- <link rel="stylesheet" href="style.css" /> -->
+  </head>
+  <body>
+    <div id="game">
+      <table>
+        <tr>
+          <td id="cell_0_0">+</td>
+          <td id="cell_0_1">+</td>
+          <td id="cell_0_2">+</td>
+          <td id="cell_0_3">+</td>
+        </tr>
+        <tr>
+          <td id="cell_1_0">+</td>
+          <td id="cell_1_1">+</td>
+          <td id="cell_1_2">+</td>
+          <td id="cell_1_3">+</td>
+        </tr>
+        <tr>
+          <td id="cell_2_0">+</td>
+          <td id="cell_2_1">+</td>
+          <td id="cell_2_2">+</td>
+          <td id="cell_2_3">+</td>
+        </tr>
+        <tr>
+          <td id="cell_3_0">+</td>
+          <td id="cell_3_1">+</td>
+          <td id="cell_3_2">+</td>
+          <td id="cell_3_3">+</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- scripts -->
+    <!--
+    <script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
+    -->
+    <script>
+'use strict';
+
+(function () {
+
+  const rows = 4;
+  const cols = 4;
+
+  const gs_over = 0;
+  const gs_pick1 = 1;
+  const gs_pick2 = 2;
+  const gs_next = 3;
+
+  const faces_available = "0123456789".split('');
+
+  const shuffle = (arr) => (
+    arr.map((value) => ({ value, random: Math.random() }))
+       .sort((a, b) => (a.random - b.random))
+       .map((x) => (x.value))
+  );
+
+  const createBoard = (fn) => {
+    var board = [], row, x, y;
+    for ( y = 0 ; y < rows ; y++ ) {
+      board.push(row = []);
+      for ( x = 0 ; x < cols ; x++ )
+        row.push(fn(x, y));
+    }
+    return board;
+  };
+
+  class Game {
+    constructor(ui) {
+      const n_cards = rows * cols;
+      const n_faces = n_cards / 2;
+      console.assert(n_faces === Math.floor(n_faces), "even cards, whole faces");
+      console.assert(n_faces <= faces_available.length, "enough faces");
+      this.faces = shuffle(faces_available).slice(0, n_faces);
+
+      const cards_left = shuffle(this.faces.concat(this.faces));
+      this.cards = createBoard(() => cards_left.pop());
+
+      this.state = gs_pick1;
+      this.left = rows * cols;
+      this.rounds = 0;
+      this.ui = ui;
+
+      ui.reset();
+    }
+
+    pick(x, y, cell) {
+      var card = this.cards[y][x];
+      var stop_propagation = false;
+
+      if (this.state === gs_pick1) {
+        if (card != null) {
+          this.pick1 = { x, y, cell, card };
+          this.state = gs_pick2;
+          this.ui.reveal(cell, card);
+        }
+        stop_propagation = true;
+      } else if (this.state === gs_pick2) {
+        if ((card != null) && (cell !== this.pick1.cell)) {
+          this.pick2 = { x, y, cell, card };
+          this.state = gs_next;
+          this.ui.reveal(cell, card);
+        }
+        stop_propagation = true;
+      }
+
+      return stop_propagation;
+    }
+
+    next() {
+      if (this.state === gs_next) {
+        this.rounds++;
+
+        if (this.pick1.card === this.pick2.card) {
+          this.cards[this.pick1.y][this.pick1.x] = null;
+          this.cards[this.pick2.y][this.pick2.x] = null;
+          this.left -= 2;
+
+          this.ui.remove(this.pick1.cell);
+          this.ui.remove(this.pick2.cell);
+        } else {
+          this.ui.conceal(this.pick1.cell);
+          this.ui.conceal(this.pick2.cell);
+        }
+        this.pick1 = this.pick2 = null;
+
+        if (this.left <= 0) {
+          this.state = gs_over;
+          this.ui.win();
+        } else {
+          this.state = gs_pick1;
+        }
+      }
+
+      return this.state !== gs_over;
+    }
+  }
+
+  var game;
+
+  const ui = (() => {
+    const board = createBoard((x, y) => document.getElementById(`cell_${y}_${x}`));
+
+    const forEachCell = (fn) => (
+      board.forEach((row, y) => (
+        row.forEach((cell, x) => fn(cell, x, y))
+      ))
+    );
+
+    forEachCell((cell, x, y) => {
+      cell.addEventListener('click', (event) => {
+        if (game.pick(x, y, cell, event)) event.stopPropagation();
+      });
+    });
+
+    var won = false;
+    window.addEventListener('click', (event) => {
+      if (!game.next(event)) {
+        if (won) {
+          won = false;
+          game = new Game(ui);
+        } else {
+          won = true;
+        }
+      }
+    });
+
+    const reveal = (cell, card) => { cell.innerHTML = card; };
+    const conceal = (cell) => { cell.innerHTML = 'x'; };
+
+    return {
+      reveal, conceal,
+      reset() { forEachCell((cell) => conceal(cell)); },
+      remove(cell) { cell.innerHTML = '-'; },
+      win() { forEachCell((cell) => { cell.innerHTML = 'w' }); }
+    };
+  })();
+
+  game = new Game(ui);
+})();
+
+    </script>
+  </body>
+</html>
